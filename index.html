@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Acheter vs Louer — Tours</title>
+  <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --buy:    #c8a96e;
+      --rA:     #7ec8b0;
+      --rB:     #a89fe8;
+      --pea:    #5aa0e8;
+      --cto:    #e87e7e;
+      --bg:     #13161e;
+      --deep:   #0a0c10;
+      --border: #1e2130;
+      --text:   #e8e0d0;
+      --muted:  #888;
+      --dim:    #444;
+    }
+
+    body {
+      background: var(--deep);
+      color: var(--text);
+      font-family: Georgia, serif;
+      padding: 28px 20px;
+      min-height: 100vh;
+    }
+
+    .wrap { max-width: 980px; margin: 0 auto; }
+
+    .label-tag {
+      color: var(--buy);
+      font-size: 10px;
+      letter-spacing: .2em;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+    h1 { font-size: clamp(20px, 3vw, 34px); font-weight: 400; margin-bottom: 6px; }
+
+    /* Tax banners */
+    .tax-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .tax-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+    }
+    .tax-card .tc-label  { color: var(--dim);  font-size: 10px; margin-bottom: 2px; }
+    .tax-card .tc-rate   { font-size: 22px; font-family: monospace; font-weight: 700; margin-bottom: 2px; }
+    .tax-card .tc-detail { color: var(--muted); font-size: 11px; margin-bottom: 1px; }
+    .tax-card .tc-sub    { color: #555; font-size: 10px; }
+
+    /* PEA saturation warning */
+    #pea-warn {
+      background: #1a1410;
+      border: 1px solid #3a2a1a;
+      border-radius: 8px;
+      padding: 9px 14px;
+      margin-bottom: 14px;
+      font-size: 11px;
+      color: #b8906a;
+      display: none;
+    }
+
+    /* Pills */
+    .pills {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 18px;
+    }
+    .pill {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 9px 12px;
+    }
+    .pill-label { color: var(--dim); font-size: 9px; text-transform: uppercase; letter-spacing: .08em; margin-bottom: 2px; }
+    .pill-val   { font-size: 14px; font-family: monospace; font-weight: 700; }
+
+    /* Main layout */
+    .main { display: grid; grid-template-columns: 1fr 272px; gap: 20px; align-items: start; }
+
+    /* Chart */
+    #chart { width: 100%; height: 340px; }
+
+    /* Table */
+    .tbl-wrap {
+      margin-top: 12px;
+      background: var(--bg);
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    thead tr { background: #0f1117; }
+    th {
+      padding: 8px 10px;
+      font-weight: 400;
+      font-size: 9px;
+      letter-spacing: .05em;
+      text-align: right;
+    }
+    th:first-child { text-align: left; }
+    tbody tr { border-top: 1px solid #1a1d28; }
+    td { padding: 8px 10px; text-align: right; font-family: monospace; }
+    td:first-child { text-align: left; color: var(--muted); }
+    .diff { font-size: 9px; margin-left: 3px; }
+
+    /* Note box */
+    .note-box {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-top: 10px;
+      font-size: 11px;
+      line-height: 1.6;
+    }
+    .note-box .nb-title { color: var(--buy); font-size: 9px; letter-spacing: .12em; text-transform: uppercase; margin-bottom: 6px; }
+    .note-box p { color: #777; margin-bottom: 4px; }
+    .note-box p:last-child { color: #555; margin-bottom: 0; }
+
+    .footnote { color: #333; font-size: 10px; margin-top: 8px; line-height: 1.5; }
+
+    /* Controls panel */
+    .panel {
+      background: var(--bg);
+      border-radius: 10px;
+      padding: 18px 14px;
+      border: 1px solid var(--border);
+    }
+    .panel-title { color: var(--dim); font-size: 9px; letter-spacing: .15em; text-transform: uppercase; margin-bottom: 14px; }
+
+    .grp { margin-bottom: 16px; }
+    .grp-title {
+      color: var(--dim);
+      font-size: 9px;
+      letter-spacing: .15em;
+      text-transform: uppercase;
+      margin-bottom: 9px;
+      padding-bottom: 5px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .slide-row { margin-bottom: 11px; }
+    .slide-header { display: flex; justify-content: space-between; margin-bottom: 3px; }
+    .slide-label { color: #aaa; font-size: 11px; }
+    .slide-val   { color: var(--text); font-family: monospace; font-size: 12px; font-weight: 600; }
+    input[type=range] { width: 100%; accent-color: var(--buy); cursor: pointer; }
+
+    .pea-bar-wrap {
+      background: #0f1117;
+      border-radius: 6px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+    }
+    .pea-bar-labels { display: flex; justify-content: space-between; margin-bottom: 4px; }
+    .pea-bar-track  { height: 6px; border-radius: 3px; background: var(--cto); overflow: hidden; }
+    .pea-bar-fill   { height: 100%; background: var(--pea); transition: width .2s; }
+    .pea-hint { color: #444; font-size: 10px; margin-top: 4px; line-height: 1.4; }
+
+    /* Responsive */
+    @media (max-width: 700px) {
+      .main        { grid-template-columns: 1fr; }
+      .pills       { grid-template-columns: repeat(2, 1fr); }
+      .tax-grid    { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+  <p class="label-tag">Simulateur — Tours · Fiscalité PEA/CTO hybride</p>
+  <h1>Acheter vs Louer + investir</h1>
+
+  <!-- Tax cards -->
+  <div class="tax-grid" style="margin-top:14px;">
+    <div class="tax-card">
+      <div class="tc-label">🏠 Acheteur</div>
+      <div class="tc-rate" style="color:var(--buy)">0%</div>
+      <div class="tc-detail">Résidence principale</div>
+      <div class="tc-sub">Exonération totale CGT en France</div>
+    </div>
+    <div class="tax-card">
+      <div class="tc-label">📈 Locataire — tranche PEA</div>
+      <div class="tc-rate" style="color:var(--pea)">17,2%</div>
+      <div class="tc-detail" id="pea-detail">≤ 150 000 € versés</div>
+      <div class="tc-sub">PS uniquement, après 5 ans</div>
+    </div>
+    <div class="tax-card">
+      <div class="tc-label">📈 Locataire — tranche CTO</div>
+      <div class="tc-rate" style="color:var(--cto)">30%</div>
+      <div class="tc-detail" id="cto-detail">> 150 000 € versés</div>
+      <div class="tc-sub">PFU : 12,8% IR + 17,2% PS</div>
+    </div>
+  </div>
+
+  <!-- PEA saturation warning -->
+  <div id="pea-warn"></div>
+
+  <!-- Summary pills -->
+  <div class="pills">
+    <div class="pill"><div class="pill-label">Mensualité crédit</div><div class="pill-val" style="color:var(--buy)" id="p-mp">—</div></div>
+    <div class="pill"><div class="pill-label">Loyer initial</div><div class="pill-val" style="color:var(--rA)" id="p-rent">—</div></div>
+    <div class="pill"><div class="pill-label">Frais de notaire</div><div class="pill-val" style="color:var(--cto)" id="p-notaire">—</div></div>
+    <div class="pill"><div class="pill-label">Surplus locataire/mois</div><div class="pill-val" style="color:var(--rB)" id="p-surplus">—</div></div>
+  </div>
+
+  <div class="main">
+    <!-- Left: chart + table -->
+    <div>
+      <div id="chart"></div>
+
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:left;color:var(--dim)"></th>
+              <th style="color:var(--buy)">🏠 Acheter</th>
+              <th style="color:var(--rA)">📈 S&P (apport investi)</th>
+              <th style="color:var(--rA)">taux eff.</th>
+              <th style="color:var(--rB)">💶 S&P (apport épargne)</th>
+              <th style="color:var(--rB)">taux eff.</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+
+      <div class="note-box">
+        <div class="nb-title">Pourquoi 30% et pas plus ?</div>
+        <p>Le <strong style="color:var(--text)">PFU (Prélèvement Forfaitaire Unique)</strong> = 12,8% IR + 17,2% PS = 30%. C'est un taux fixe optionnel. L'alternative est le barème progressif, mais il ne serait avantageux que si votre TMI &lt; 12,8%, inhabituel pour un investisseur à ce niveau de patrimoine.</p>
+        <p>Note : une <em>Assurance Vie</em> après 8 ans offre ~24,7% (7,5% + 17,2%) sur les rachats au-delà de 4 600 €/an — mieux que le CTO mais moins bien que le PEA.</p>
+      </div>
+
+      <p class="footnote">Taux effectif = impôt sur PV / gains totaux à la liquidation. Locataire B : Livret A exonéré d'impôt. Charges copropriété identiques pour les deux — elles s'annulent dans le différentiel. Valeurs nominales.</p>
+    </div>
+
+    <!-- Right: controls -->
+    <div class="panel">
+      <div class="panel-title">Paramètres</div>
+
+      <div class="grp">
+        <div class="grp-title">Bien immobilier</div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Prix</span><span class="slide-val" id="v-housePrice">200 000 €</span></div>
+          <input type="range" id="housePrice" min="50000" max="800000" step="5000" value="200000">
+        </div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Apport</span><span class="slide-val" id="v-downPayment">20 000 €</span></div>
+          <input type="range" id="downPayment" min="5000" max="200000" step="1000" value="20000">
+        </div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Frais de notaire</span><span class="slide-val" id="v-notairePct">7,5%</span></div>
+          <input type="range" id="notairePct" min="2" max="10" step="0.5" value="7.5">
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-title">Crédit</div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Taux (mars 2026 : 3,11%)</span><span class="slide-val" id="v-mortgageRate">3,35%</span></div>
+          <input type="range" id="mortgageRate" min="1" max="8" step="0.05" value="3.35">
+        </div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Durée</span><span class="slide-val" id="v-mortgageTerm">25 ans</span></div>
+          <input type="range" id="mortgageTerm" min="10" max="30" step="5" value="25">
+        </div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Loyer = X% mensualité</span><span class="slide-val" id="v-rentRatio">80%</span></div>
+          <input type="range" id="rentRatio" min="60" max="130" step="5" value="80">
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-title">Coûts propriétaire</div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">TF + entretien + assurance</span><span class="slide-val" id="v-ownerCostPct">1,5% val./an</span></div>
+          <input type="range" id="ownerCostPct" min="0.5" max="4" step="0.25" value="1.5">
+        </div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Charges copro</span><span class="slide-val" id="v-chargesBase">100 €/mois</span></div>
+          <input type="range" id="chargesBase" min="30" max="400" step="10" value="100">
+        </div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Hausse charges</span><span class="slide-val" id="v-chargesGrowth">2,5%/an</span></div>
+          <input type="range" id="chargesGrowth" min="0" max="5" step="0.5" value="2.5">
+        </div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Ravalement</span><span class="slide-val" id="v-renovAmount">5 000 €</span></div>
+          <input type="range" id="renovAmount" min="0" max="20000" step="500" value="5000">
+        </div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Fréquence ravalement</span><span class="slide-val" id="v-renovPeriod">15 ans</span></div>
+          <input type="range" id="renovPeriod" min="5" max="30" step="5" value="15">
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-title">Loyer</div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Hausse annuelle (IRL)</span><span class="slide-val" id="v-rentGrowth">1,5%/an</span></div>
+          <input type="range" id="rentGrowth" min="0" max="5" step="0.25" value="1.5">
+        </div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-title">Fiscalité actions (locataire)</div>
+        <div class="pea-bar-wrap">
+          <div class="pea-bar-labels">
+            <span style="color:var(--pea);font-size:11px">≤ plafond PEA → 17,2%</span>
+            <span style="color:var(--cto);font-size:11px">surplus → 30%</span>
+          </div>
+          <div class="pea-bar-track"><div class="pea-bar-fill" id="pea-bar" style="width:50%"></div></div>
+        </div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Plafond PEA</span><span class="slide-val" id="v-peaLimit">150 000 €</span></div>
+          <input type="range" id="peaLimit" min="0" max="300000" step="10000" value="150000">
+        </div>
+        <div class="pea-hint">150k€ = 1 PEA individuel · 300k€ = couple (2 PEA)</div>
+      </div>
+
+      <div class="grp">
+        <div class="grp-title">Marchés</div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">S&P 500 / MSCI World</span><span class="slide-val" id="v-sp500">10,5%/an</span></div>
+          <input type="range" id="sp500" min="3" max="15" step="0.5" value="10.5">
+        </div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Appréciation immo (Tours)</span><span class="slide-val" id="v-houseGrowth">2,0%/an</span></div>
+          <input type="range" id="houseGrowth" min="0" max="8" step="0.25" value="2.0">
+        </div>
+        <div class="slide-row">
+          <div class="slide-header"><span class="slide-label">Livret A (scénario B)</span><span class="slide-val" id="v-savingsRate">2,5%/an</span></div>
+          <input type="range" id="savingsRate" min="0" max="5" step="0.25" value="2.5">
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Helpers ──────────────────────────────────────────────────────────────────
+const fmtK = v => {
+  const a = Math.abs(v), s = v < 0 ? '−' : '';
+  if (a >= 1e6) return `${s}${(a/1e6).toFixed(2)}M€`;
+  if (a >= 1e3) return `${s}${Math.round(a/1000)}k€`;
+  return `${s}${Math.round(a)}€`;
+};
+const fmtN = v => {
+  const a = Math.abs(v), s = v < 0 ? '−' : '';
+  return `${s}${Math.round(a).toLocaleString('fr-FR')} €`;
+};
+const pct = v => `${v.toFixed(1)}%`;
+
+// ── Core simulation ──────────────────────────────────────────────────────────
+function simulate(p) {
+  const notaire  = p.housePrice * p.notairePct / 100;
+  const loan     = p.housePrice - p.downPayment;
+  const mr       = p.mortgageRate / 100 / 12;
+  const n        = p.mortgageTerm * 12;
+  const mp       = mr > 0
+    ? loan * (mr * Math.pow(1+mr,n)) / (Math.pow(1+mr,n) - 1)
+    : loan / n;
+  const initRent = mp * p.rentRatio / 100;
+  const sp       = p.sp500 / 100;
+  const sav      = p.savingsRate / 100;
+
+  // ── Buyer ──
+  let sunkCosts = notaire;
+  let buyInvest = 0;
+
+  // ── Renter A: (down+notaire) into PEA/CTO from day 1 ──
+  const initA = p.downPayment + notaire;
+  let rA = {
+    peaP: Math.min(initA, p.peaLimit),
+    peaC: Math.min(initA, p.peaLimit),
+    ctoP: Math.max(0, initA - p.peaLimit),
+    ctoC: Math.max(0, initA - p.peaLimit),
+    totC: initA,
+  };
+
+  // ── Renter B: (down+notaire) in Livret A, surplus into PEA/CTO ──
+  let rB = { peaP: 0, peaC: 0, ctoP: 0, ctoC: 0, totC: 0 };
+  let rBCash = p.downPayment + notaire;
+
+  const years = [], buyNWs = [], rANWs = [], rBNWs = [];
+  const rARates = [], rBRates = [];
+  let peaSatA = null, peaSatB = null;
+
+  function afterTax(peaP, peaC, ctoP, ctoC) {
+    const pG = Math.max(0, peaP - peaC);
+    const cG = Math.max(0, ctoP - ctoC);
+    return (peaP - pG * 0.172) + (ctoP - cG * 0.30);
+  }
+  function blended(peaP, peaC, ctoP, ctoC) {
+    const pG = Math.max(0, peaP - peaC);
+    const cG = Math.max(0, ctoP - ctoC);
+    const tot = pG + cG;
+    return tot > 0 ? (pG * 0.172 + cG * 0.30) / tot * 100 : 0;
+  }
+  function stepPort(o, surplus) {
+    let {peaP, peaC, ctoP, ctoC, totC} = o;
+    // apply returns
+    peaP *= (1 + sp);
+    ctoP *= (1 + sp);
+    // apply surplus
+    if (surplus > 0) {
+      const space = Math.max(0, p.peaLimit - totC);
+      const toPEA = Math.min(surplus, space);
+      const toCTO = surplus - toPEA;
+      peaP += toPEA; peaC += toPEA;
+      ctoP += toCTO; ctoC += toCTO;
+      totC += surplus;
+    } else if (surplus < 0) {
+      const draw = Math.min(-surplus, peaP + ctoP);
+      if (draw > 0) {
+        const tot = peaP + ctoP;
+        const pf = tot > 0 ? peaP / tot : 0.5;
+        const dP = draw * pf, dC = draw * (1 - pf);
+        if (peaP > 0) { peaC = peaC * Math.max(0, peaP-dP) / peaP; peaP = Math.max(0, peaP-dP); }
+        if (ctoP > 0) { ctoC = ctoC * Math.max(0, ctoP-dC) / ctoP; ctoP = Math.max(0, ctoP-dC); }
+      }
+    }
+    return {peaP, peaC, ctoP, ctoC, totC};
+  }
+
+  for (let yr = 0; yr <= 50; yr++) {
+    const houseVal  = p.housePrice * Math.pow(1 + p.houseGrowth/100, yr);
+    const months    = yr * 12;
+    const mortBal   = yr >= p.mortgageTerm ? 0
+      : loan * (Math.pow(1+mr,n) - Math.pow(1+mr,months)) / (Math.pow(1+mr,n) - 1);
+    const ownerCosts  = houseVal * p.ownerCostPct / 100;
+    const rentAnnual  = initRent * 12 * Math.pow(1 + p.rentGrowth/100, yr);
+    const renovCost   = yr > 0 && p.renovPeriod > 0 && yr % p.renovPeriod === 0 ? p.renovAmount : 0;
+
+    const buyNW = houseVal - mortBal + buyInvest - sunkCosts;
+    const rANW  = afterTax(rA.peaP, rA.peaC, rA.ctoP, rA.ctoC);
+    const rBNW  = afterTax(rB.peaP, rB.peaC, rB.ctoP, rB.ctoC) + rBCash;
+
+    if (!peaSatA && rA.totC >= p.peaLimit && yr > 0) peaSatA = yr;
+    if (!peaSatB && rB.totC >= p.peaLimit && yr > 0) peaSatB = yr;
+
+    years.push(yr);
+    buyNWs.push(Math.round(buyNW));
+    rANWs.push(Math.round(rANW));
+    rBNWs.push(Math.round(rBNW));
+    rARates.push(blended(rA.peaP, rA.peaC, rA.ctoP, rA.ctoC));
+    rBRates.push(blended(rB.peaP, rB.peaC, rB.ctoP, rB.ctoC));
+
+    if (yr < 50) {
+      const surplus = (yr < p.mortgageTerm ? mp * 12 : 0) + ownerCosts + renovCost - rentAnnual;
+
+      // buyer update
+      if (yr < p.mortgageTerm) {
+        sunkCosts += renovCost;
+      } else {
+        buyInvest = buyInvest * (1 + sp) + mp * 12 - renovCost;
+      }
+
+      // renter updates
+      rA = stepPort(rA, surplus);
+      rB = stepPort(rB, surplus);
+      rBCash *= (1 + sav);
+    }
+  }
+
+  const summary = [25, 30, 40, 50].map(yr => ({
+    yr,
+    buy:   buyNWs[yr],
+    rA:    rANWs[yr],
+    rB:    rBNWs[yr],
+    rARate: rARates[yr],
+    rBRate: rBRates[yr],
+  }));
+
+  return { years, buyNWs, rANWs, rBNWs, summary, mp, initRent, notaire, peaSatA, peaSatB };
+}
+
+// ── Plotly chart ─────────────────────────────────────────────────────────────
+function drawChart(years, buyNWs, rANWs, rBNWs, mortgageTerm, peaSatA, renovPeriod) {
+  const shapes = [];
+  // mortgage line
+  shapes.push({
+    type: 'line', x0: mortgageTerm, x1: mortgageTerm, y0: 0, y1: 1,
+    yref: 'paper', line: { color: '#2a2d3a', dash: 'dot', width: 1 }
+  });
+  // renovation lines
+  if (renovPeriod > 0) {
+    for (let y = renovPeriod; y <= 50; y += renovPeriod) {
+      shapes.push({
+        type: 'line', x0: y, x1: y, y0: 0, y1: 1,
+        yref: 'paper', line: { color: '#1e1010', dash: 'dot', width: 1 }
+      });
+    }
+  }
+  // PEA saturation
+  if (peaSatA) {
+    shapes.push({
+      type: 'line', x0: peaSatA, x1: peaSatA, y0: 0, y1: 1,
+      yref: 'paper', line: { color: '#3a2a1a', dash: 'dash', width: 1 }
+    });
+  }
+
+  const annotations = [
+    { x: mortgageTerm, y: 1, yref: 'paper', text: 'crédit soldé',
+      showarrow: false, font: { color: '#3a3d4a', size: 9 }, xanchor: 'left' }
+  ];
+  if (peaSatA) {
+    annotations.push({
+      x: peaSatA, y: 0.96, yref: 'paper', text: `PEA plein`,
+      showarrow: false, font: { color: '#5a4020', size: 9 }, xanchor: 'left'
+    });
+  }
+
+  const traces = [
+    { x: years, y: buyNWs, name: '🏠 Acheter (0% CGT)',
+      line: { color: '#c8a96e', width: 2.5 }, hovertemplate: 'An %{x}<br>%{y:,.0f} €<extra></extra>' },
+    { x: years, y: rANWs, name: '📈 Louer + S&P (apport investi)',
+      line: { color: '#7ec8b0', width: 2.5 }, hovertemplate: 'An %{x}<br>%{y:,.0f} €<extra></extra>' },
+    { x: years, y: rBNWs, name: '💶 Louer + S&P (apport épargne)',
+      line: { color: '#a89fe8', width: 2.5 }, hovertemplate: 'An %{x}<br>%{y:,.0f} €<extra></extra>' },
+  ];
+
+  const layout = {
+    paper_bgcolor: '#0a0c10',
+    plot_bgcolor:  '#0a0c10',
+    margin: { t: 10, r: 10, b: 40, l: 70 },
+    xaxis: {
+      tickprefix: 'A', color: '#444', gridcolor: '#1a1d28',
+      tickfont: { color: '#666', size: 11 }
+    },
+    yaxis: {
+      color: '#444', gridcolor: '#1a1d28',
+      tickfont: { color: '#666', size: 11 },
+      tickformat: ',.0f', ticksuffix: ' €'
+    },
+    legend: { font: { color: '#666', size: 11 }, bgcolor: 'rgba(0,0,0,0)' },
+    shapes, annotations,
+    hoverlabel: {
+      bgcolor: '#0f1117', bordercolor: '#1e2130',
+      font: { color: '#e8e0d0', family: 'monospace', size: 12 }
+    }
+  };
+
+  Plotly.react('chart', traces, layout, { responsive: true, displayModeBar: false });
+}
+
+// ── Table update ─────────────────────────────────────────────────────────────
+function updateTable(summary) {
+  const tbody = document.getElementById('tbl-body');
+  tbody.innerHTML = summary.map(({ yr, buy, rA, rB, rARate, rBRate }) => {
+    const best = Math.max(buy, rA, rB);
+    const hl = v => v === best ? `color:#e8e0d0;font-weight:700` : `color:#777`;
+    const diffA = rA - buy, diffB = rB - buy;
+    const dc = d => d > 0 ? '#7ec8b0' : '#e87e7e';
+    const rateColor = r => r > 25 ? '#e87e7e' : '#5aa0e8';
+    return `<tr>
+      <td>An ${yr}</td>
+      <td style="${hl(buy)}">${fmtN(buy)}</td>
+      <td style="${hl(rA)}">${fmtN(rA)} <span class="diff" style="color:${dc(diffA)}">${diffA>0?'+':''}${fmtK(diffA)}</span></td>
+      <td style="color:${rateColor(rARate)}">${pct(rARate)}</td>
+      <td style="${hl(rB)}">${fmtN(rB)} <span class="diff" style="color:${dc(diffB)}">${diffB>0?'+':''}${fmtK(diffB)}</span></td>
+      <td style="color:${rateColor(rBRate)}">${pct(rBRate)}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── Slider wiring ─────────────────────────────────────────────────────────────
+function getParams() {
+  const g = id => parseFloat(document.getElementById(id).value);
+  return {
+    housePrice:   g('housePrice'),
+    downPayment:  g('downPayment'),
+    notairePct:   g('notairePct'),
+    mortgageRate: g('mortgageRate'),
+    mortgageTerm: g('mortgageTerm'),
+    rentRatio:    g('rentRatio'),
+    ownerCostPct: g('ownerCostPct'),
+    chargesBase:  g('chargesBase'),
+    chargesGrowth:g('chargesGrowth'),
+    renovAmount:  g('renovAmount'),
+    renovPeriod:  g('renovPeriod'),
+    rentGrowth:   g('rentGrowth'),
+    peaLimit:     g('peaLimit'),
+    sp500:        g('sp500'),
+    houseGrowth:  g('houseGrowth'),
+    savingsRate:  g('savingsRate'),
+  };
+}
+
+function updateLabels(p) {
+  const fr = (v, s='') => v.toLocaleString('fr-FR') + s;
+  document.getElementById('v-housePrice').textContent   = fr(p.housePrice, ' €');
+  document.getElementById('v-downPayment').textContent  = fr(p.downPayment, ' €');
+  document.getElementById('v-notairePct').textContent   = fr(p.notairePct) + '%';
+  document.getElementById('v-mortgageRate').textContent = p.mortgageRate.toFixed(2) + '%';
+  document.getElementById('v-mortgageTerm').textContent = p.mortgageTerm + ' ans';
+  document.getElementById('v-rentRatio').textContent    = p.rentRatio + '%';
+  document.getElementById('v-ownerCostPct').textContent = p.ownerCostPct + '% val./an';
+  document.getElementById('v-chargesBase').textContent  = p.chargesBase + ' €/mois';
+  document.getElementById('v-chargesGrowth').textContent= p.chargesGrowth + '%/an';
+  document.getElementById('v-renovAmount').textContent  = fr(p.renovAmount, ' €');
+  document.getElementById('v-renovPeriod').textContent  = p.renovPeriod + ' ans';
+  document.getElementById('v-rentGrowth').textContent   = p.rentGrowth + '%/an';
+  document.getElementById('v-peaLimit').textContent     = fr(p.peaLimit, ' €');
+  document.getElementById('v-sp500').textContent        = p.sp500 + '%/an';
+  document.getElementById('v-houseGrowth').textContent  = p.houseGrowth + '%/an';
+  document.getElementById('v-savingsRate').textContent  = p.savingsRate + '%/an';
+
+  // PEA bar
+  document.getElementById('pea-bar').style.width = Math.min(100, p.peaLimit / 3000) + '%';
+  document.getElementById('pea-detail').textContent = `≤ ${(p.peaLimit/1000).toFixed(0)} 000 € versés`;
+  document.getElementById('cto-detail').textContent = `> ${(p.peaLimit/1000).toFixed(0)} 000 € versés`;
+}
+
+function refresh() {
+  const p = getParams();
+  updateLabels(p);
+  const r = simulate(p);
+
+  // pills
+  document.getElementById('p-mp').textContent      = fmtN(r.mp);
+  document.getElementById('p-rent').textContent    = fmtN(r.initRent);
+  document.getElementById('p-notaire').textContent = fmtN(r.notaire);
+  document.getElementById('p-surplus').textContent = fmtN(r.mp - r.initRent);
+
+  // PEA warning
+  const warn = document.getElementById('pea-warn');
+  const msgs = [];
+  if (r.peaSatA) msgs.push(`Scénario apport investi : PEA plein à l'an ${r.peaSatA} → CTO 30% au-delà.`);
+  if (r.peaSatB) msgs.push(`Scénario apport épargne : PEA plein à l'an ${r.peaSatB}.`);
+  if (msgs.length) {
+    warn.innerHTML = '⚠️ Plafond PEA atteint — ' + msgs.join(' ') +
+      ' <span style="color:#554030">Montez à 300k€ pour simuler un couple.</span>';
+    warn.style.display = 'block';
+  } else {
+    warn.style.display = 'none';
+  }
+
+  drawChart(r.years, r.buyNWs, r.rANWs, r.rBNWs, p.mortgageTerm, r.peaSatA, p.renovPeriod);
+  updateTable(r.summary);
+}
+
+// attach all sliders
+document.querySelectorAll('input[type=range]').forEach(el => {
+  el.addEventListener('input', refresh);
+});
+
+// initial render
+refresh();
+</script>
+</body>
+</html>
