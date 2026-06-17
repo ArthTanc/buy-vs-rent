@@ -503,6 +503,7 @@ function simulate(p) {
   const houseEquities=[], buyInvestArr=[];
   const rARates=[], rBRates=[];
   let peaSatA=null, peaSatB=null;
+  let catchARen=null, catchBRen=null, crossARen=null, crossBRen=null;
 
   function afterTax(peaP, peaC, ctoP, ctoC) {
     return (peaP - Math.max(0, peaP-peaC)*0.172) + (ctoP - Math.max(0, ctoP-ctoC)*0.30);
@@ -551,6 +552,10 @@ function simulate(p) {
 
     if (!peaSatA && rA.totC>=p.peaLimit && yr>0) peaSatA=yr;
     if (!peaSatB && rB.totC>=p.peaLimit && yr>0) peaSatB=yr;
+    if (catchARen === null && buyNW > rANW && yr > 0) catchARen = yr;
+    if (catchBRen === null && buyNW > rBNW && yr > 0) catchBRen = yr;
+    if (catchARen !== null && crossARen === null && rANW > buyNW && yr > catchARen) crossARen = yr;
+    if (catchBRen !== null && crossBRen === null && rBNW > buyNW && yr > catchBRen) crossBRen = yr;
 
     years.push(yr);
     buyNWs.push(Math.round(buyNW));
@@ -611,7 +616,8 @@ function simulate(p) {
   }
 
   return { years, buyNWs, rANWs, rBNWs, summary, mp, initRent, notaire, loan,
-           peaSatA, peaSatB, baseSurplusMonthly, ownerCostsMonthly, renovMonthly,
+           peaSatA, peaSatB, catchARen, catchBRen, crossARen, crossBRen,
+           baseSurplusMonthly, ownerCostsMonthly, renovMonthly,
            rentCrossesYear };
 }
 
@@ -639,6 +645,18 @@ function drawChart(years, buyNWs, rANWs, rBNWs, p, r) {
   if (r.rentCrossesYear && r.rentCrossesYear<=h)
     shapes.push({ type:'line', x0:r.rentCrossesYear, x1:r.rentCrossesYear, y0:0, y1:1,
       yref:'paper', line:{color:'#e87040', dash:'dash', width:1.5} });
+  if (r.catchARen && r.catchARen<=h)
+    shapes.push({ type:'line', x0:r.catchARen, x1:r.catchARen, y0:0, y1:1,
+      yref:'paper', line:{color:'#c8a040', dash:'dot', width:1} });
+  if (r.catchBRen && r.catchBRen<=h)
+    shapes.push({ type:'line', x0:r.catchBRen, x1:r.catchBRen, y0:0, y1:1,
+      yref:'paper', line:{color:'#a08060', dash:'dot', width:1} });
+  if (r.crossARen && r.crossARen<=h)
+    shapes.push({ type:'line', x0:r.crossARen, x1:r.crossARen, y0:0, y1:1,
+      yref:'paper', line:{color:'#1a7a58', dash:'dash', width:1} });
+  if (r.crossBRen && r.crossBRen<=h)
+    shapes.push({ type:'line', x0:r.crossBRen, x1:r.crossBRen, y0:0, y1:1,
+      yref:'paper', line:{color:'#5840a0', dash:'dash', width:1} });
 
   const annotations = [];
   if (p.mortgageTerm<=h)
@@ -650,6 +668,18 @@ function drawChart(years, buyNWs, rANWs, rBNWs, p, r) {
   if (r.rentCrossesYear && r.rentCrossesYear<=h)
     annotations.push({ x:r.rentCrossesYear, y:0.87, yref:'paper', text:'loyer > mensualité',
       showarrow:false, font:{color:'#c05010',size:9}, xanchor:'left' });
+  if (r.catchARen && r.catchARen<=h)
+    annotations.push({ x:r.catchARen, y:0.80, yref:'paper', text:'acheteur rattrape A',
+      showarrow:false, font:{color:'#c8a040',size:9}, xanchor:'left' });
+  if (r.catchBRen && r.catchBRen<=h)
+    annotations.push({ x:r.catchBRen, y:0.73, yref:'paper', text:'acheteur rattrape B',
+      showarrow:false, font:{color:'#a08060',size:9}, xanchor:'left' });
+  if (r.crossARen && r.crossARen<=h)
+    annotations.push({ x:r.crossARen, y:0.66, yref:'paper', text:'locataire A > acheteur',
+      showarrow:false, font:{color:'#1a7a58',size:9}, xanchor:'left' });
+  if (r.crossBRen && r.crossBRen<=h)
+    annotations.push({ x:r.crossBRen, y:0.59, yref:'paper', text:'locataire B > acheteur',
+      showarrow:false, font:{color:'#5840a0',size:9}, xanchor:'left' });
 
   const traces = [
     { x:years, y:buyNWs, name:'🏠 Acheter (0% CGT)',
