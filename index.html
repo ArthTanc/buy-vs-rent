@@ -194,6 +194,31 @@
             style="flex:1;accent-color:var(--buy)">
           <span style="color:var(--text);font-family:monospace;font-size:12px;font-weight:600;min-width:42px" id="v-horizon">30 ans</span>
         </div>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap">
+          <input type="checkbox" id="useInflation" style="accent-color:var(--buy);width:14px;height:14px">
+          <span style="color:var(--muted);font-size:11px">Appliquer l'inflation</span>
+        </label>
+      </div>
+      <div id="inflationControls" style="display:none;margin-bottom:10px;padding:8px 12px;background:#f8f6f4;border-radius:6px;border:1px solid var(--border)">
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;align-items:center;gap:8px">
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--muted)">
+              <input type="radio" name="inflationMode" value="fixed" checked style="accent-color:var(--buy)"> Fixe
+            </label>
+            <label style="display:flex;align-items:center;gap:4px;cursor:pointer;font-size:11px;color:var(--muted)">
+              <input type="radio" name="inflationMode" value="replay" style="accent-color:var(--buy)"> Replay
+            </label>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex:1;min-width:120px">
+            <span style="font-size:11px;color:var(--muted);white-space:nowrap">Taux fixe</span>
+            <input type="range" id="inflationRate" min="0" max="10" step="0.25" value="2.0" style="flex:1;accent-color:var(--buy)">
+            <span style="font-size:11px;color:var(--text);font-family:monospace;font-weight:600;min-width:45px" id="v-inflationRate">2,0%/an</span>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;font-size:10px;color:var(--dim);margin-top:4px">
+          <span>Convertit toutes les valeurs en euros d'aujourd'hui (valeur réelle)</span>
+          <span id="v-inflationApplied" style="margin-left:8px;font-family:monospace"></span>
+        </div>
       </div>
 
       <div id="chart"></div>
@@ -681,6 +706,43 @@ function simulate(p) {
            rentCrossesYear };
 }
 
+// ── Inflation post-processing ────────────────────────────────────────────────
+function getInflationRates(p, nYears) {
+  if (!p.useInflation) return Array(nYears).fill(0);
+  if (p.inflationMode === 'replay') {
+    const inflData = getHistoricalInflation(nYears);
+    if (inflData && inflData.length > 0) {
+      return Array.from({length: nYears}, (_, i) => inflData[i % inflData.length] / 100);
+    }
+  }
+  const fixed = p.inflationRate / 100;
+  return Array(nYears).fill(fixed);
+}
+
+function applyInflationToResults(r, p) {
+  if (!p.useInflation) return;
+  const nYears = r.years.length;
+  const inflRates = getInflationRates(p, nYears);
+  // Convert nominal values to today's euros:
+  // year 0 (today) = no adjustment
+  // year t = divide by cumulative (1+inflation) from year 0..t-1
+  let cumDiv = 1;
+  for (let yr = 0; yr < nYears; yr++) {
+    const adj = 1 / cumDiv;
+    r.buyNWs[yr] = Math.round(r.buyNWs[yr] * adj);
+    r.rANWs[yr] = Math.round(r.rANWs[yr] * adj);
+    r.rBNWs[yr] = Math.round(r.rBNWs[yr] * adj);
+    if (yr < nYears - 1) cumDiv *= (1 + inflRates[yr]);
+  }
+  // Re-derive summary from adjusted arrays
+  r.summary = r.summary.map(s => ({
+    ...s,
+    buy: r.buyNWs[s.yr],
+    rA: r.rANWs[s.yr],
+    rB: r.rBNWs[s.yr],
+  }));
+}
+
 // ── Chart ─────────────────────────────────────────────────────────────────────
 function drawChart(years, buyNWs, rANWs, rBNWs, p, r) {
   const h = p.horizon;
@@ -847,6 +909,9 @@ function getParams() {
     includeRenov:      cb('includeRenov'),
     etfMode,
     etfReturns,
+    useInflation:      cb('useInflation'),
+    inflationMode:     cb('useInflation') ? rb('inflationMode') : 'fixed',
+    inflationRate:     g('inflationRate'),
     peaFee:            g('peaFee'),
   };
 
@@ -871,6 +936,13 @@ function updateLabels(p, r) {
   document.getElementById('v-rentGrowth').textContent    = p.rentGrowth+'%/an';
   document.getElementById('v-peaLimit').textContent      = fr(p.peaLimit,' €');
   document.getElementById('v-peaFee').textContent        = p.peaFee.toFixed(2)+'%/an';
+  if (p.inflationMode === 'replay') {
+    const inflData = getHistoricalInflation(31);
+    const avg = inflData.reduce((a,b)=>a+b,0) / inflData.length;
+    document.getElementById('v-inflationRate').textContent = `replay (moy. ${pct(avg)})`;
+  } else {
+    document.getElementById('v-inflationRate').textContent = p.inflationRate+'%/an';
+  }
   document.getElementById('v-sp500').textContent         = p.sp500+'%/an';
   document.getElementById('v-houseGrowth').textContent   = p.houseGrowth+'%/an';
   const rp = document.getElementById('replayYears');
@@ -905,6 +977,8 @@ function updateSectionVisibility() {
   document.getElementById('fixedRateSection').style.display = mode === 'fixed' ? 'block' : 'none';
   document.getElementById('replaySection').style.display = mode === 'replay' ? 'block' : 'none';
   document.getElementById('portfolioSection').style.display = mode === 'portfolio' ? 'block' : 'none';
+  const infl = document.getElementById('useInflation').checked;
+  document.getElementById('inflationControls').style.display = infl ? 'block' : 'none';
 }
 
 function updateReplayMax() {
@@ -982,6 +1056,7 @@ function refresh() {
   }
 
   const r = simulate(p);
+  applyInflationToResults(r, p);
   updateLabels(p, r);
 
   document.getElementById('p-mp').textContent      = fmtN(r.mp);
@@ -1006,6 +1081,15 @@ function refresh() {
     warn.style.display = 'block';
   } else { warn.style.display = 'none'; }
 
+  const inflLabel = document.getElementById('v-inflationApplied');
+  if (p.useInflation) {
+    const inflRates = getInflationRates(p, p.horizon + 1);
+    const avg = inflRates.reduce((a,b) => a + b, 0) * 100 / inflRates.length;
+    inflLabel.textContent = `moy. ${pct(avg)}`;
+  } else {
+    inflLabel.textContent = '';
+  }
+
   drawChart(r.years, r.buyNWs, r.rANWs, r.rBNWs, p, r);
   updateTable(r.summary);
 
@@ -1027,6 +1111,7 @@ document.querySelectorAll('input[type=range],input[type=checkbox],input[type=rad
 document.querySelectorAll('input[name="etfMode"]').forEach(el => {
   el.addEventListener('change', updateSectionVisibility);
 });
+document.getElementById('useInflation').addEventListener('change', updateSectionVisibility);
 document.getElementById('addPortfolioBtn').addEventListener('click', addPortfolioItem);
 document.getElementById('etfSelect').addEventListener('change', () => { updateReplayMax(); refresh(); });
 document.getElementById('portfolioEtfSelect').addEventListener('change', updateReplayMax);
