@@ -160,7 +160,7 @@ function simulate(p) {
   return { years, buyNWs, rANWs, rBNWs, summary, mp, initRent, notaire, loan,
            peaSatA, peaSatB, catchARen, catchBRen, crossARen, crossBRen,
            baseSurplusMonthly, ownerCostsMonthly, renovMonthly,
-           rentCrossesYear };
+           rentCrossesYear, buyInvestArr, houseEquities };
 }
 
 function getInflationRates(p, nYears) {
