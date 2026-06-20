@@ -513,8 +513,25 @@
           </div>
         </div>
         <div class="slide-row">
-          <div class="slide-header"><span class="slide-label">Appréciation immo (Tours)</span><span class="slide-val" id="v-houseGrowth">2,0%/an</span></div>
-          <input type="range" id="houseGrowth" min="0" max="8" step="0.25" value="2.0">
+          <div class="slide-header" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+            <span class="slide-label">Appréciation immo</span>
+            <label style="font-size:11px;font-weight:400;color:var(--muted);display:flex;align-items:center;gap:3px">
+              <input type="radio" name="houseGrowthMode" value="fixed" checked style="accent-color:var(--buy);width:12px;height:12px"> Fixe
+            </label>
+            <label style="font-size:11px;font-weight:400;color:var(--muted);display:flex;align-items:center;gap:3px">
+              <input type="radio" name="houseGrowthMode" value="replay" style="accent-color:var(--buy);width:12px;height:12px"> Replay
+            </label>
+          </div>
+          <span class="slide-val" id="v-houseGrowth">2,0%/an</span>
+        </div>
+        <div id="houseGrowthFixedSection">
+          <input type="range" id="houseGrowth" min="0" max="8" step="0.25" value="2.0" style="margin-top:2px">
+        </div>
+        <div id="houseGrowthReplaySection" style="display:none">
+          <div class="slide-row">
+            <div class="slide-header"><span class="slide-label">Rejouer les N dernières années</span><span class="slide-val" id="v-houseReplayYears">20 ans</span></div>
+            <input type="range" id="houseReplayYears" min="5" max="55" step="1" value="20">
+          </div>
         </div>
         <div class="slide-row">
           <div class="slide-header"><span class="slide-label">Taux compte épargne locataire</span><span class="slide-val" id="v-savingsRate">2,5%/an</span></div>
@@ -618,8 +635,22 @@ function simulate(p) {
     return {peaP,peaC,ctoP,ctoC,totC};
   }
 
+  // House growth replay
+  let houseGrowthCum = null;
+  let houseGrowthRates = null;
+  if (p.houseGrowthMode === 'replay') {
+    houseGrowthRates = getHistoricalHousePriceReturns(p.houseReplayYears);
+    houseGrowthCum = [1];
+    for (let i = 1; i <= 50; i++) {
+      const gr = houseGrowthRates[(i-1) % houseGrowthRates.length] / 100;
+      houseGrowthCum.push(houseGrowthCum[i-1] * (1 + gr));
+    }
+  }
+
   for (let yr=0; yr<=50; yr++) {
-    const houseVal  = p.housePrice * Math.pow(1+p.houseGrowth/100, yr);
+    const houseVal  = houseGrowthCum
+      ? Math.round(p.housePrice * houseGrowthCum[yr])
+      : p.housePrice * Math.pow(1+p.houseGrowth/100, yr);
     const months    = yr*12;
     const mortBal   = yr>=p.mortgageTerm ? 0
       : loan*(Math.pow(1+mr,n)-Math.pow(1+mr,months))/(Math.pow(1+mr,n)-1);
@@ -900,6 +931,8 @@ function getParams() {
     peaLimit:          g('peaLimit'),
     sp500:             g('sp500'),
     houseGrowth:       g('houseGrowth'),
+    houseGrowthMode:   rb('houseGrowthMode'),
+    houseReplayYears:  g('houseReplayYears'),
     savingsRate:       g('savingsRate'),
     horizon:           g('horizon'),
     renterInitInvest:  g('renterInitInvest'),
@@ -944,7 +977,14 @@ function updateLabels(p, r) {
     document.getElementById('v-inflationRate').textContent = p.inflationRate+'%/an';
   }
   document.getElementById('v-sp500').textContent         = p.sp500+'%/an';
-  document.getElementById('v-houseGrowth').textContent   = p.houseGrowth+'%/an';
+  if (p.houseGrowthMode === 'replay') {
+    const avgHG = getHistoricalHousePriceReturns(p.houseReplayYears).reduce((a,b)=>a+b,0) / p.houseReplayYears;
+    document.getElementById('v-houseGrowth').textContent = `replay (moy. ${pct(avgHG)})`;
+  } else {
+    document.getElementById('v-houseGrowth').textContent = p.houseGrowth+'%/an';
+  }
+  const hrp = document.getElementById('houseReplayYears');
+  if (hrp) document.getElementById('v-houseReplayYears').textContent = hrp.value+' ans';
   const rp = document.getElementById('replayYears');
   if (rp) document.getElementById('v-replayYears').textContent = rp.value+' ans';
   const prp = document.getElementById('portfolioReplayYears');
@@ -979,6 +1019,9 @@ function updateSectionVisibility() {
   document.getElementById('portfolioSection').style.display = mode === 'portfolio' ? 'block' : 'none';
   const infl = document.getElementById('useInflation').checked;
   document.getElementById('inflationControls').style.display = infl ? 'block' : 'none';
+  const hgMode = document.querySelector('input[name="houseGrowthMode"]:checked').value;
+  document.getElementById('houseGrowthFixedSection').style.display = hgMode === 'fixed' ? 'block' : 'none';
+  document.getElementById('houseGrowthReplaySection').style.display = hgMode === 'replay' ? 'block' : 'none';
 }
 
 function updateReplayMax() {
@@ -1112,6 +1155,9 @@ document.querySelectorAll('input[name="etfMode"]').forEach(el => {
   el.addEventListener('change', updateSectionVisibility);
 });
 document.getElementById('useInflation').addEventListener('change', updateSectionVisibility);
+document.querySelectorAll('input[name="houseGrowthMode"]').forEach(el => {
+  el.addEventListener('change', updateSectionVisibility);
+});
 document.getElementById('addPortfolioBtn').addEventListener('click', addPortfolioItem);
 document.getElementById('etfSelect').addEventListener('change', () => { updateReplayMax(); refresh(); });
 document.getElementById('portfolioEtfSelect').addEventListener('change', updateReplayMax);

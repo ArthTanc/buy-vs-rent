@@ -1,4 +1,22 @@
 const HISTORICAL = {
+  housePrices: {
+    france: [
+      {year:1971, r:8.0},{year:1972, r:9.5},{year:1973, r:11.8},{year:1974, r:15.1},
+      {year:1975, r:11.9},{year:1976, r:16.8},{year:1977, r:14.4},{year:1978, r:10.5},
+      {year:1979, r:15.7},{year:1980, r:18.7},{year:1981, r:7.9},{year:1982, r:5.0},
+      {year:1983, r:5.2},{year:1984, r:3.3},{year:1985, r:3.5},{year:1986, r:5.3},
+      {year:1987, r:8.3},{year:1988, r:12.1},{year:1989, r:11.2},{year:1990, r:7.6},
+      {year:1991, r:2.8},{year:1992, r:-3.6},{year:1993, r:-0.7},{year:1994, r:-0.1},
+      {year:1995, r:-0.9},{year:1996, r:1.9},{year:1997, r:0.0},{year:1998, r:2.4},
+      {year:1999, r:7.0},{year:2000, r:8.8},{year:2001, r:7.7},{year:2002, r:9.7},
+      {year:2003, r:12.2},{year:2004, r:15.4},{year:2005, r:14.7},{year:2006, r:9.6},
+      {year:2007, r:5.4},{year:2008, r:-3.3},{year:2009, r:-3.2},{year:2010, r:6.8},
+      {year:2011, r:3.7},{year:2012, r:-2.1},{year:2013, r:-1.5},{year:2014, r:-2.1},
+      {year:2015, r:-0.1},{year:2016, r:1.6},{year:2017, r:3.3},{year:2018, r:3.2},
+      {year:2019, r:3.8},{year:2020, r:5.9},{year:2021, r:6.9},{year:2022, r:4.7},
+      {year:2023, r:-3.6},{year:2024, r:-1.9},{year:2025, r:1.0}
+    ]
+  },
   etfs: [
     {
       id: 'sp500',
@@ -199,4 +217,14 @@ function getMaxYearsForEtf(etfId) {
 
 function getMaxInflationYears() {
   return HISTORICAL.inflation.france.length;
+}
+
+function getHistoricalHousePriceReturns(years) {
+  const sorted = [...HISTORICAL.housePrices.france].sort((a,b) => a.year - b.year);
+  const count = Math.min(years, sorted.length);
+  return sorted.slice(sorted.length - count).map(d => d.r);
+}
+
+function getMaxHousePriceYears() {
+  return HISTORICAL.housePrices.france.length;
 }
