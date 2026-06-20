@@ -6,6 +6,7 @@
   <title>Acheter vs Louer — Tours</title>
   <script src="https://cdn.plot.ly/plotly-2.27.0.min.js"></script>
   <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+  <script src="historical-data.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -420,9 +421,67 @@
 
       <div class="grp">
         <div class="grp-title">Marchés</div>
-        <div class="slide-row">
-          <div class="slide-header"><span class="slide-label">S&P 500 / MSCI World</span><span class="slide-val" id="v-sp500">10,5%/an</span></div>
-          <input type="range" id="sp500" min="3" max="15" step="0.5" value="10.5">
+        <div style="margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+          <div style="color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.1em;margin-bottom:7px">
+            Mode rendement actions
+          </div>
+          <div class="rb-row">
+            <label class="rb-label">
+              <input type="radio" name="etfMode" value="fixed" checked>
+              <span class="rb-text">
+                <span class="rb-main">Taux fixe</span>
+                <span class="rb-hint">Rendement annuel constant</span>
+              </span>
+            </label>
+          </div>
+          <div class="rb-row">
+            <label class="rb-label">
+              <input type="radio" name="etfMode" value="replay">
+              <span class="rb-text">
+                <span class="rb-main">Replay historique</span>
+                <span class="rb-hint">Rejoue les performances passées</span>
+              </span>
+            </label>
+          </div>
+          <div class="rb-row">
+            <label class="rb-label">
+              <input type="radio" name="etfMode" value="portfolio">
+              <span class="rb-text">
+                <span class="rb-main">Portefeuille multi-ETF</span>
+                <span class="rb-hint">Composer avec plusieurs ETF</span>
+              </span>
+            </label>
+          </div>
+        </div>
+        <div id="fixedRateSection">
+          <div class="slide-row">
+            <div class="slide-header"><span class="slide-label">Taux de rendement fixe</span><span class="slide-val" id="v-sp500">10,5%/an</span></div>
+            <input type="range" id="sp500" min="3" max="15" step="0.5" value="10.5">
+          </div>
+        </div>
+        <div id="replaySection" style="display:none">
+          <div class="slide-row">
+            <div class="slide-header" style="margin-bottom:5px"><span class="slide-label">ETF</span></div>
+            <select id="etfSelect" style="width:100%;padding:4px 6px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text);margin-bottom:8px"></select>
+          </div>
+          <div class="slide-row">
+            <div class="slide-header"><span class="slide-label">Rejouer les N dernières années</span><span class="slide-val" id="v-replayYears">20 ans</span></div>
+            <input type="range" id="replayYears" min="5" max="56" step="1" value="20">
+          </div>
+        </div>
+        <div id="portfolioSection" style="display:none">
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <select id="portfolioEtfSelect" style="flex:1;padding:4px 6px;font-size:11px;border:1px solid var(--border);border-radius:4px;background:var(--bg);color:var(--text)"></select>
+            <input type="number" id="portfolioAlloc" value="100" min="1" max="100" style="width:46px;padding:4px;font-size:11px;border:1px solid var(--border);border-radius:4px;text-align:center">
+            <span style="color:var(--muted);font-size:10px;line-height:28px">%</span>
+            <button id="addPortfolioBtn" style="padding:4px 10px;font-size:11px;border:1px solid var(--rA);border-radius:4px;background:var(--rA);color:#fff;cursor:pointer">+</button>
+          </div>
+          <div id="portfolioList" style="margin-bottom:6px"></div>
+          <div id="portfolioTotalAlloc" style="color:var(--muted);font-size:10px;margin-bottom:6px">Allocation: 0%</div>
+          <div class="slide-row">
+            <div class="slide-header"><span class="slide-label">Rejouer les N dernières années</span><span class="slide-val" id="v-portfolioReplayYears">20 ans</span></div>
+            <input type="range" id="portfolioReplayYears" min="5" max="56" step="1" value="20">
+          </div>
         </div>
         <div class="slide-row">
           <div class="slide-header"><span class="slide-label">Appréciation immo (Tours)</span><span class="slide-val" id="v-houseGrowth">2,0%/an</span></div>
@@ -474,15 +533,16 @@ function simulate(p) {
   const initRent = mp * p.rentRatio / 100;
   const sp  = p.sp500 / 100;
   const sav = p.savingsRate / 100;
+  const peaFee = p.peaFee / 100;
 
-  // Buyer investment portfolio — builds after mortgage is paid off
+  function getYearReturn(yr) {
+    if (p.etfReturns && p.etfReturns.length > 0)
+      return p.etfReturns[yr % p.etfReturns.length] / 100;
+    return sp;
+  }
+
   let buyInvest = 0;
-
-  // ── RENTERS ──
-  // Both renters start with exactly downPayment in cash (same savings as buyer used).
-  // renterInitInvest (slider, 0→downPayment) = how much Renter A puts in S&P at year 0.
-  // The remainder goes into a savings account (earns savingsRate).
-  const ri = Math.min(p.renterInitInvest, downPayment); // cap to downPayment
+  const ri = Math.min(p.renterInitInvest, downPayment);
 
   let rA = {
     peaP: Math.min(ri, p.peaLimit), peaC: Math.min(ri, p.peaLimit),
@@ -508,9 +568,10 @@ function simulate(p) {
     const pG=Math.max(0,peaP-peaC), cG=Math.max(0,ctoP-ctoC), tot=pG+cG;
     return tot>0 ? (pG*0.172+cG*0.30)/tot*100 : 0;
   }
-  function stepPort(o, surplus) {
+  function stepPort(o, surplus, rate) {
     let {peaP, peaC, ctoP, ctoC, totC} = o;
-    peaP *= (1+sp); ctoP *= (1+sp);
+    peaP *= (1+rate) * (1 - peaFee);
+    ctoP *= (1+rate);
     const eff = p.negBehavior==='stop' ? Math.max(0,surplus) : surplus;
     if (eff > 0) {
       const space = Math.max(0, p.peaLimit-totC);
@@ -571,17 +632,16 @@ function simulate(p) {
       if (p.includeAssurance)  ownerBonus += fracAss * ownerCosts;
       const renovBonus   = p.includeRenov ? renovCost : 0;
       const surplus      = baseSurplus + ownerBonus + renovBonus;
+      const yrRate = getYearReturn(yr);
 
-      // Buyer: renovation comes out of buyer's pocket during mortgage (not financed again)
       if (yr < p.mortgageTerm) {
-        buyInvest -= renovCost; // one-time cash hit, no compounding
+        buyInvest -= renovCost;
       } else {
-        buyInvest = buyInvest*(1+sp) + mp*12 - renovCost;
+        buyInvest = buyInvest*(1+yrRate) + mp*12 - renovCost;
       }
 
-      // Renters invest monthly surplus
-      rA = stepPort(rA, surplus);
-      rB = stepPort(rB, surplus);
+      rA = stepPort(rA, surplus, yrRate);
+      rB = stepPort(rB, surplus, yrRate);
       // Savings accounts compound
       rACash *= (1+sav);
       rBCash *= (1+sav);
@@ -733,6 +793,31 @@ function updateTable(summary) {
 function getParams() {
   const g  = id => parseFloat(document.getElementById(id).value);
   const cb = id => document.getElementById(id).checked;
+  const rb = id => document.querySelector(`input[name="${id}"]:checked`).value;
+  const etfMode = rb('etfMode');
+  let etfReturns = null;
+  if (etfMode === 'replay') {
+    const sel = document.getElementById('etfSelect');
+    if (sel) etfReturns = getHistoricalReturns(sel.value, g('replayYears'));
+  } else if (etfMode === 'portfolio') {
+    const items = Array.from(document.querySelectorAll('#portfolioList .port-item'));
+    if (items.length > 0) {
+      const rates = items.map(item => {
+        const id = item.dataset.etfId;
+        const alloc = parseFloat(item.dataset.alloc);
+        const yrs = g('portfolioReplayYears');
+        const rets = getHistoricalReturns(id, yrs);
+        if (!rets || rets.length === 0) return null;
+        return rets.map(r => r * alloc / 100);
+      }).filter(Boolean);
+      if (rates.length > 0) {
+        const maxLen = Math.max(...rates.map(r => r.length));
+        etfReturns = Array.from({length: maxLen}, (_, i) =>
+          rates.reduce((sum, r) => sum + (r[i % r.length] || 0), 0)
+        );
+      }
+    }
+  }
   return {
     housePrice:        g('housePrice'),
     downPaymentPct:    g('downPaymentPct'),
@@ -756,6 +841,9 @@ function getParams() {
     includeEntretien:  cb('includeEntretien'),
     includeAssurance:  cb('includeAssurance'),
     includeRenov:      cb('includeRenov'),
+    etfMode,
+    etfReturns,
+    peaFee:            g('peaFee'),
   };
 
 }
@@ -780,6 +868,10 @@ function updateLabels(p, r) {
   document.getElementById('v-peaLimit').textContent      = fr(p.peaLimit,' €');
   document.getElementById('v-sp500').textContent         = p.sp500+'%/an';
   document.getElementById('v-houseGrowth').textContent   = p.houseGrowth+'%/an';
+  const rp = document.getElementById('replayYears');
+  if (rp) document.getElementById('v-replayYears').textContent = rp.value+' ans';
+  const prp = document.getElementById('portfolioReplayYears');
+  if (prp) document.getElementById('v-portfolioReplayYears').textContent = prp.value+' ans';
   document.getElementById('v-savingsRate').textContent   = p.savingsRate+'%/an';
   document.getElementById('v-horizon').textContent       = p.horizon+' ans';
   document.getElementById('v-renterInitInvest').textContent = fr(Math.min(p.renterInitInvest, downPayment),' €');
@@ -802,11 +894,80 @@ function updateLabels(p, r) {
       : 'Aucun ravalement prévu';
 }
 
+// ── Section visibility ───────────────────────────────────────────────────────
+function updateSectionVisibility() {
+  const mode = document.querySelector('input[name="etfMode"]:checked').value;
+  document.getElementById('fixedRateSection').style.display = mode === 'fixed' ? 'block' : 'none';
+  document.getElementById('replaySection').style.display = mode === 'replay' ? 'block' : 'none';
+  document.getElementById('portfolioSection').style.display = mode === 'portfolio' ? 'block' : 'none';
+}
+
+function updateReplayMax() {
+  const slider = document.getElementById('replayYears');
+  const sel = document.getElementById('etfSelect');
+  if (sel) {
+    const maxYrs = getMaxYearsForEtf(sel.value);
+    slider.max = maxYrs;
+    if (parseInt(slider.value) > maxYrs) slider.value = maxYrs;
+  }
+  const slider2 = document.getElementById('portfolioReplayYears');
+  if (!slider2) return;
+  const items = document.querySelectorAll('#portfolioList .port-item');
+  if (items.length > 0) {
+    let minMax = 999;
+    for (const item of items) {
+      const m = getMaxYearsForEtf(item.dataset.etfId);
+      if (m < minMax) minMax = m;
+    }
+    slider2.max = minMax;
+    if (parseInt(slider2.value) > minMax) slider2.value = minMax;
+  } else if (slider2) {
+    const maxYrs = getMaxYearsForEtf(document.getElementById('portfolioEtfSelect').value);
+    slider2.max = maxYrs;
+    if (parseInt(slider2.value) > maxYrs) slider2.value = maxYrs;
+  }
+}
+
+function populateEtfSelects() {
+  const sel1 = document.getElementById('etfSelect');
+  const sel2 = document.getElementById('portfolioEtfSelect');
+  const opts = HISTORICAL.etfs.map(e => `<option value="${e.id}">${e.name} (${e.ticker})</option>`).join('');
+  if (sel1) sel1.innerHTML = opts;
+  if (sel2) sel2.innerHTML = opts;
+}
+
+function addPortfolioItem() {
+  const sel = document.getElementById('portfolioEtfSelect');
+  const alloc = parseFloat(document.getElementById('portfolioAlloc').value);
+  if (!sel || !alloc || alloc <= 0) return;
+  const list = document.getElementById('portfolioList');
+  const existing = list.querySelectorAll('.port-item');
+  const totalAlloc = [...existing].reduce((s, i) => s + parseFloat(i.dataset.alloc), 0);
+  const newTotal = totalAlloc + alloc;
+  if (newTotal > 100) return;
+  const etfId = sel.value;
+  const etfName = sel.options[sel.selectedIndex].text;
+  const div = document.createElement('div');
+  div.className = 'port-item';
+  div.dataset.etfId = etfId;
+  div.dataset.alloc = alloc;
+  div.style.cssText = 'display:flex;align-items:center;gap:4px;padding:4px 6px;margin-bottom:4px;background:#f0f2f6;border-radius:4px;font-size:11px';
+  div.innerHTML = `<span style="flex:1">${etfName}</span><span style="font-weight:600;color:var(--rA)">${alloc}%</span><button style="padding:1px 6px;font-size:10px;border:1px solid #dde0e8;border-radius:3px;background:var(--bg);cursor:pointer;color:#b03020">✕</button>`;
+  div.querySelector('button').onclick = () => { div.remove(); updateReplayMax(); refresh();
+    const items = list.querySelectorAll('.port-item');
+    const tot = [...items].reduce((s, i) => s + parseFloat(i.dataset.alloc), 0);
+    document.getElementById('portfolioTotalAlloc').textContent = `Allocation: ${tot}%`;
+  };
+  list.appendChild(div);
+  document.getElementById('portfolioTotalAlloc').textContent = `Allocation: ${newTotal}%`;
+  updateReplayMax();
+  refresh();
+}
+
 // ── Refresh ───────────────────────────────────────────────────────────────────
 function refresh() {
   const p = getParams();
 
-  // Keep renterInitInvest slider max in sync with downPayment
   const riDownPayment = p.housePrice * p.downPaymentPct / 100;
   const riSlider = document.getElementById('renterInitInvest');
   riSlider.max = riDownPayment;
@@ -858,6 +1019,15 @@ document.querySelectorAll('input[type=range],input[type=checkbox],input[type=rad
   el.addEventListener('change', refresh);
 });
 
+document.querySelectorAll('input[name="etfMode"]').forEach(el => {
+  el.addEventListener('change', updateSectionVisibility);
+});
+document.getElementById('addPortfolioBtn').addEventListener('click', addPortfolioItem);
+document.getElementById('etfSelect').addEventListener('change', () => { updateReplayMax(); refresh(); });
+document.getElementById('portfolioEtfSelect').addEventListener('change', updateReplayMax);
+
+populateEtfSelects();
+updateSectionVisibility();
 refresh();
 </script>
 
