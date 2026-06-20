@@ -193,10 +193,6 @@
             style="flex:1;accent-color:var(--buy)">
           <span style="color:var(--text);font-family:monospace;font-size:12px;font-weight:600;min-width:42px" id="v-horizon">30 ans</span>
         </div>
-        <label style="display:flex;align-items:center;gap:6px;cursor:pointer;white-space:nowrap">
-          <input type="checkbox" id="logScale" style="accent-color:var(--buy);width:14px;height:14px">
-          <span style="color:var(--muted);font-size:11px">Échelle log</span>
-        </label>
       </div>
 
       <div id="chart"></div>
@@ -695,9 +691,9 @@ function drawChart(years, buyNWs, rANWs, rBNWs, p, r) {
     margin:{t:10,r:10,b:80,l:70},
     xaxis:{ tickprefix:'A', color:'#9ca3af', gridcolor:'#eef0f4',
             tickfont:{color:'#9ca3af',size:11}, range:[0,h] },
-    yaxis:{ type:p.logScale?'log':'linear', color:'#9ca3af', gridcolor:'#eef0f4',
+    yaxis:{ type:'linear', color:'#9ca3af', gridcolor:'#eef0f4',
             tickfont:{color:'#9ca3af',size:11},
-            ...(p.logScale ? {} : {tickformat:',.0f', ticksuffix:' €', range:[0, maxY]}) },
+            tickformat:',.0f', ticksuffix:' €', range:[0, maxY] },
     legend:{ orientation:'h', x:0.5, xanchor:'center', y:-0.22,
              font:{color:'#6b7280',size:11}, bgcolor:'rgba(0,0,0,0)' },
     shapes, annotations,
@@ -760,9 +756,8 @@ function getParams() {
     includeEntretien:  cb('includeEntretien'),
     includeAssurance:  cb('includeAssurance'),
     includeRenov:      cb('includeRenov'),
-    logScale:          cb('logScale'),
-    negBehavior:       document.querySelector('input[name="negBehavior"]:checked').value,
   };
+
 }
 
 function updateLabels(p, r) {
